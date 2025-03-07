@@ -1,0 +1,11 @@
+---
+description: python env rules and dependenciesl
+globs: 
+alwaysApply: false
+---
+
+use uv
+
+like
+uv run client --transport sse --port 8000 --verbose
+
