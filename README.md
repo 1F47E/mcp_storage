@@ -45,20 +45,41 @@ pip install pydantic click httpx
 
 ## Quick Start
 
-Call the random_uint64 tool:
+### Starting the MCP Server
+
+Start the MCP server using the SSE transport:
 
 ```bash
-# Using SSE transport
-python -m mcp_client.client --transport sse --port 8000
+# Using uv
+uv run mcp_server --transport sse --port 8000
+```
 
-# Using stdio transport (for piping to a server)
-python -m mcp_client.client --transport stdio
+### Using the MCP Client
+
+List available tools:
+
+```bash
+# Using uv with SSE transport
+uv run client --transport sse --port 8000
 ```
 
 Call a specific tool with arguments:
 
 ```bash
-python -m mcp_client.client --tool "tool_name" --args '{"param1": "value1"}'
+# Call random_uint64 tool (for testing)
+uv run client --transport sse --port 8000 --tool random_uint64
+
+# Call postgres_schemas tool
+uv run client --transport sse --port 8000 --tool postgres_schemas 
+
+# Call a tool with arguments
+uv run client --transport sse --port 8000 --tool postgres_schema_ddls --args '{"schema_name": "public"}'
+```
+
+Using stdio transport (for piping to a server):
+
+```bash
+uv run client --transport stdio
 ```
 
 ## Pydantic Integration
