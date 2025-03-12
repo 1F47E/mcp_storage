@@ -19,6 +19,8 @@ This implementation includes several built-in tools that can be accessed through
 - **mysql_query_select**: Executes a SELECT query on a MySQL database
 - **mysql_schema_ddls**: Gets DDL statements for a specific MySQL schema
 
+
+
 ## MCP Python Client with Pydantic
 
 A Python client for the Model Context Protocol (MCP) with robust response parsing using Pydantic models.
@@ -63,7 +65,18 @@ List available tools:
 uv run client --transport sse --port 8000
 ```
 
-Call a specific tool with arguments:
+
+## Using with Cursor
+
+1. Add mcp server
+![Cursor MCP Server Setup](_media/screen2.png)
+
+2. Run it via command above (uv run mcp_server --transport sse --port 8000)
+
+3. Done! You should see available list of tools
+![Cursor MCP Server Setup](_media/screen1.png)
+
+4. Start a new chat in the AI pane in Cursor. The agent will automatically have access to the available tools. If the agent doesn't use a tool when expected, you can explicitly prompt it to use a specific MCP tool.
 
 ```bash
 # Call random_uint64 tool (for testing)
