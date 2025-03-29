@@ -84,3 +84,7 @@ The Model Context Protocol (MCP) is a standardized communication protocol design
 MCP uses JSON-RPC 2.0 as its messaging format and supports multiple transport mechanisms:
 - **Server-Sent Events (SSE)**: HTTP-based protocol for push notifications
 - **Standard I/O (stdio)**: Direct communication through stdin/stdout for local integrations
+
+
+NOTE:
+all code generated with sonnet 3.7, use only as reference for your prototypes, this is not a production ready code!
