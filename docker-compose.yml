@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  mcp-server:
+    build: .
+    ports:
+      - "8008:8008"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8008
+      - DEBUG=1
+      # Uncomment and modify if you need a specific base URL
+      # - MCP_BASE_URL=http://localhost:8008
+    restart: unless-stopped
+    # Optional: Mount a volume for logs or data persistence
+    # volumes:
+    #   - ./logs:/app/logs 

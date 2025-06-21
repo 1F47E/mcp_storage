@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+docs/
+
+# Python virtual environment
+.venv/
+mcp_client/
+mcp_server/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+
+# Environment files
+.env
+
+# Media files
+_media/
+
+# Lock files (we want to copy these)
+# uv.lock
+
+# Config files that might contain secrets
+config.yaml
+
+# Cursor specific
+.cursorignore 
