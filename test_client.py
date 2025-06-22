@@ -133,7 +133,7 @@ class MCPTestClient:
         print("\n=== Testing Initialize ===")
         try:
             response = self._make_request("initialize", {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": "2025-03-26",
                 "capabilities": {},
                 "clientInfo": {
                     "name": "MCP Test Client",
