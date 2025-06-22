@@ -1,10 +1,10 @@
-# Server command to run the MCP server with SSE transport
+# Server command to run the MCP server with HTTP transport
 .PHONY: server
 server:
-	uv run mcp_server --transport sse --port 5435
+	uv run mcp-storage --transport http --port 5435
 
-# Client command to run the client with SSE transport
+# Client command to run the client with HTTP transport
 .PHONY: client
 client:
-	uv run client --transport sse --port 8000 --verbose
+	uv run client --transport http --port 5435 --verbose
 

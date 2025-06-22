@@ -1,47 +1,54 @@
-# Git
-.git
-.gitignore
-
-# Documentation
-README.md
-docs/
-
-# Python virtual environment
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
 .venv/
-mcp_client/
-mcp_server/
+venv/
+ENV/
+env/
 
-# IDE and editor files
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# Build artifacts
+# Git
+.git/
+.gitignore
+
+# Go
 *.exe
+*.exe~
 *.dll
-*.so
 *.dylib
+*.test
+*.out
+vendor/
+server
 
-# Test files
-*_test.go
-
-# Environment files
-.env
-
-# Media files
+# Documentation
 _media/
+docs/
+*.md
+!README.md
 
-# Lock files (we want to copy these)
-# uv.lock
-
-# Config files that might contain secrets
+# Config (we'll mount this in docker-compose)
 config.yaml
 
-# Cursor specific
-.cursorignore 
+# Misc
+.env
+.env.*
+*.log
+*.bak
+*.tmp

@@ -1277,69 +1277,189 @@ class MCPServerWrapper:
         return await self.app.run(*args, **kwargs)
 
 @click.command()
-@click.option("--port", default=8000, help="Port to listen on for SSE")
+@click.option("--port", default=5435, help="Port to listen on")
 @click.option(
     "--transport",
-    type=click.Choice(["stdio", "sse"]),
-    default="stdio",
-    help="Transport type",
+    type=click.Choice(["http"]),
+    default="http",
+    help="Transport type (http for streamable HTTP)",
 )
 def main(port: int, transport: str) -> int:
     # Create wrapped server instance
-    app = MCPServerWrapper("mcp-website-fetcher")
-    print("[LOG] Server wrapper created")
+    app = MCPServerWrapper("mcp-storage")
+    logger.info("MCP Storage server created")
 
-    if transport == "sse":
-        from mcp.server.sse import SseServerTransport
+    if transport == "http":
+        from mcp.server.streamable_http import StreamableHTTPServerTransport
         from starlette.applications import Starlette
-        from starlette.routing import Mount, Route
+        from starlette.routing import Route
 
-        sse = SseServerTransport("/messages/")
-        print(f"[LOG] Starting server with SSE transport on port {port}")
+        # Create streamable HTTP transport
+        http_transport = StreamableHTTPServerTransport(
+            mcp_session_id="mcp-storage", is_json_response_enabled=False
+        )
+        logger.info(f"Starting server with Streamable HTTP transport on port {port}")
 
-        async def handle_sse(request):
-            print("[LOG] SSE connection established")
-            
+        async def handle_http(request):
+            """Handle HTTP requests for streamable transport."""
+            logger.info(f"HTTP request: {request.method} {request.url.path}")
+
             try:
                 # Ensure initialization is complete before accepting connections
                 await app.initialize()
-                print("[LOG] Server initialization verified")
-                
-                init_options = app.create_initialization_options()
-                async with sse.connect_sse(
+
+                # Handle the request using the transport
+                await http_transport.handle_request(
                     request.scope, request.receive, request._send
-                ) as streams:
-                    print("[LOG] SSE streams established, starting app...")
-                    await app.run(streams[0], streams[1], init_options)
+                )
             except Exception as e:
-                print(f"[ERROR] Error in SSE connection: {str(e)}")
-                import traceback
-                print(traceback.format_exc())
+                logger.error(f"Error in HTTP handler: {str(e)}")
+                logger.error(traceback.format_exc())
                 raise
+
+        # Store the app connection task
+        app_task = None
+
+        async def startup():
+            """Initialize server on startup."""
+            nonlocal app_task
+            await app.initialize()
+
+            # Connect the transport to the app
+            async def run_app():
+                async with http_transport.connect() as streams:
+                    await app.run(
+                        streams[0], streams[1], app.create_initialization_options()
+                    )
+
+            app_task = asyncio.create_task(run_app())
+
+        # OAuth endpoints
+        async def health_check(request):
+            """Simple health check endpoint."""
+            from starlette.responses import JSONResponse
+
+            return JSONResponse({"status": "healthy", "service": "mcp-storage"})
+
+        async def handle_register(request):
+            """Handle OAuth dynamic client registration."""
+            from starlette.responses import JSONResponse
+
+            # Return a mock registration response for Claude Code
+            return JSONResponse(
+                {
+                    "client_id": "mcp-storage-client",
+                    "client_secret": "not-used",
+                    "registration_access_token": "not-used",
+                    "registration_client_uri": f"http://localhost:{port}/register/mcp-storage-client",
+                    "grant_types": ["implicit", "authorization_code"],
+                    "response_types": ["token", "code"],
+                    "redirect_uris": [f"http://localhost:{port}/callback"],
+                    "application_type": "web",
+                    "token_endpoint_auth_method": "none",
+                }
+            )
+
+        async def handle_oauth_metadata(request):
+            """Handle OAuth authorization server metadata request."""
+            from starlette.responses import JSONResponse
+
+            return JSONResponse(
+                {
+                    "issuer": f"http://localhost:{port}",
+                    "authorization_endpoint": f"http://localhost:{port}/authorize",
+                    "token_endpoint": f"http://localhost:{port}/token",
+                    "registration_endpoint": f"http://localhost:{port}/register",
+                    "response_types_supported": ["code", "token"],
+                    "grant_types_supported": ["authorization_code", "implicit"],
+                    "token_endpoint_auth_methods_supported": [
+                        "none",
+                        "client_secret_post",
+                    ],
+                    "code_challenge_methods_supported": ["S256", "plain"],
+                }
+            )
+
+        async def handle_authorize(request):
+            """Handle OAuth authorization requests."""
+            import secrets
+
+            from starlette.responses import RedirectResponse
+
+            # Extract query parameters
+            client_id = request.query_params.get("client_id")
+            redirect_uri = request.query_params.get(
+                "redirect_uri", f"http://localhost:{port}/callback"
+            )
+            state = request.query_params.get("state", "")
+
+            # PKCE parameters
+            code_challenge = request.query_params.get("code_challenge")  # noqa: F841
+            code_challenge_method = request.query_params.get(
+                "code_challenge_method", "plain"
+            )
+
+            # Generate a mock authorization code
+            code = secrets.token_urlsafe(32)
+
+            # Log the authorization request
+            logger.info(
+                f"Authorization request from client: {client_id}, "
+                f"PKCE method: {code_challenge_method}"
+            )
+
+            # Redirect back with the authorization code
+            redirect_url = f"{redirect_uri}?code={code}&state={state}"
+            return RedirectResponse(url=redirect_url)
+
+        async def handle_token(request):
+            """Handle OAuth token exchange requests."""
+            import secrets
+
+            from starlette.responses import JSONResponse
+
+            # Parse form data
+            form_data = await request.form()
+            grant_type = form_data.get("grant_type")
+            code_verifier = form_data.get("code_verifier")
+
+            logger.info(
+                f"Token request with grant_type: {grant_type}, "
+                f"has_verifier: {bool(code_verifier)}"
+            )
+
+            # Generate a mock access token
+            access_token = secrets.token_urlsafe(32)
+
+            return JSONResponse(
+                {
+                    "access_token": access_token,
+                    "token_type": "Bearer",
+                    "expires_in": 3600,
+                    "scope": "read write",
+                }
+            )
 
         starlette_app = Starlette(
             debug=True,
             routes=[
-                Mount("/messages/", app=sse.handle_post_message),
-                Route("/sse", endpoint=handle_sse),
+                Route("/", endpoint=handle_http, methods=["GET", "POST"]),
+                Route("/health", endpoint=health_check, methods=["GET"]),
+                Route(
+                    "/.well-known/oauth-authorization-server",
+                    endpoint=handle_oauth_metadata,
+                    methods=["GET"],
+                ),
+                Route("/register", endpoint=handle_register, methods=["POST"]),
+                Route("/authorize", endpoint=handle_authorize, methods=["GET"]),
+                Route("/token", endpoint=handle_token, methods=["POST"]),
             ],
+            on_startup=[startup],
         )
 
         import uvicorn
-        print("[LOG] Starting uvicorn server...")
+
+        logger.info("Starting uvicorn server for Streamable HTTP...")
         uvicorn.run(starlette_app, host="0.0.0.0", port=port)
-    else:
-        from mcp.server.stdio import stdio_server
-        print("[LOG] Starting server with stdio transport")
-
-        async def arun():
-            # Initialize before starting stdio server
-            await app.initialize()
-            async with stdio_server() as streams:
-                await app.run(
-                    streams[0], streams[1], app.create_initialization_options()
-                )
-
-        anyio.run(arun)
 
     return 0

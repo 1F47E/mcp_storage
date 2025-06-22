@@ -1,21 +1,35 @@
 [project]
-name = "mcp-simple-tool"
+name = "mcp-storage"
 version = "0.1.0"
-description = "A simple MCP server exposing a PostgreSQL tool"
+description = "MCP server for database connectivity - PostgreSQL and MySQL"
 readme = "README.md"
 requires-python = ">=3.10"
-keywords = ["mcp", "llm", "automation", "web", "fetch"]
+keywords = ["mcp", "database", "postgresql", "mysql", "sql"]
 license = { text = "MIT" }
 classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
-dependencies = ["anyio>=4.5", "click>=8.1.0", "httpx>=0.27", "mcp", "PyYAML>=6.0", "psycopg2-binary>=2.9.5", "pymysql>=1.0.2", "tabulate>=0.9.0"]
+dependencies = [
+    "anyio>=4.5",
+    "click>=8.1.0",
+    "httpx>=0.27",
+    "mcp",
+    "PyYAML>=6.0",
+    "psycopg2-binary>=2.9.5",
+    "pymysql>=1.0.2",
+    "tabulate>=0.9.0",
+    "uvicorn>=0.30.0",
+    "starlette>=0.37.0",
+]
 
 [project.scripts]
-mcp-simple-tool = "mcp_simple_tool.server:main"
+mcp-storage = "mcp_server.server:main"
+server = "mcp_server.server:main"
 client = "mcp_client.client:main"
 
 [build-system]

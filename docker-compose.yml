@@ -1,17 +1,19 @@
 version: '3.8'
 
 services:
-  mcp-server:
+  mcp-storage:
     build: .
+    container_name: mcp-storage-server
     ports:
-      - "8008:8008"
+      - "5435:5435"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
     environment:
-      - HOST=0.0.0.0
-      - PORT=8008
-      - DEBUG=1
-      # Uncomment and modify if you need a specific base URL
-      # - MCP_BASE_URL=http://localhost:8008
+      - PYTHONUNBUFFERED=1
     restart: unless-stopped
-    # Optional: Mount a volume for logs or data persistence
-    # volumes:
-    #   - ./logs:/app/logs 
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge

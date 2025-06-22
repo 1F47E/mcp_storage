@@ -1,50 +1,36 @@
-# Use the official Go image as build environment
-FROM golang:1.21-alpine AS builder
-
-# Set working directory
-WORKDIR /app
-
-# Install build dependencies
-RUN apk add --no-cache git
-
-# Copy go mod files first (for better Docker layer caching)
-COPY go.mod go.sum ./
-
-# Download dependencies
-RUN go mod download
-
-# Copy source code
-COPY server.go ./
-
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server server.go
-
-# Use a minimal alpine image for the final container
-FROM alpine:latest
-
-# Install ca-certificates for HTTPS requests (if needed)
-RUN apk --no-cache add ca-certificates
-
-# Create a non-root user
-RUN adduser -D -s /bin/sh mcpuser
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# Copy the binary from builder
-COPY --from=builder /app/server .
+# Install system dependencies for PostgreSQL and MySQL clients
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    default-libmysqlclient-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
-# Change ownership of the app directory
-RUN chown -R mcpuser:mcpuser /app
+# Install uv for faster Python package management
+RUN pip install uv
 
-# Switch to non-root user
-USER mcpuser
+# Copy project files
+COPY pyproject.toml uv.lock ./
+COPY mcp_server/ ./mcp_server/
+COPY mcp_client/ ./mcp_client/
+COPY config.yaml ./
 
-# Expose the default port
-EXPOSE 8008
+# Install Python dependencies
+RUN uv pip install --system -e .
 
-# Set environment variables for Docker networking
-ENV HOST=0.0.0.0
-ENV PORT=8008
+# Expose the HTTP transport port
+EXPOSE 5435
 
-# Run the server
-CMD ["./server"] 
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:5435/health', timeout=5)" || exit 1
+
+# Run the server with HTTP transport on port 5435
+CMD ["mcp-storage", "--transport", "http", "--port", "5435"]
