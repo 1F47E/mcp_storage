@@ -6,245 +6,349 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"sync"
 
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 	"github.com/rs/zerolog/log"
 )
 
-func registerTools(s *server.MCPServer, registry *AdapterRegistry) {
-	// Always available tool
-	tool := mcp.NewTool("random_uint64",
-		mcp.WithDescription("Generate a random 64-bit unsigned integer"),
-		mcp.WithEmptyInputSchema(),
-	)
-	s.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		var n uint64
-		if err := binary.Read(rand.Reader, binary.BigEndian, &n); err != nil {
-			return nil, fmt.Errorf("failed to generate random number: %w", err)
-		}
-		return &mcp.CallToolResult{
-			Content: []interface{}{
-				mcp.TextContent{
-					Type: "text",
-					Text: fmt.Sprintf(`{"value": %d}`, n),
-				},
+// ToolRegistry manages available tools
+type ToolRegistry struct {
+	tools    map[string]Tool
+	handlers map[string]ToolHandler
+	mu       sync.RWMutex
+}
+
+// ToolHandler is a function that handles tool execution
+type ToolHandler func(ctx context.Context, arguments json.RawMessage) (*CallToolResult, error)
+
+// NewToolRegistry creates a new tool registry
+func NewToolRegistry() *ToolRegistry {
+	return &ToolRegistry{
+		tools:    make(map[string]Tool),
+		handlers: make(map[string]ToolHandler),
+	}
+}
+
+// RegisterTool registers a tool with its handler
+func (r *ToolRegistry) RegisterTool(tool Tool, handler ToolHandler) {
+	l := log.With().Str("scope", "RegisterTool").Logger()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.tools[tool.Name] = tool
+	r.handlers[tool.Name] = handler
+
+	l.Debug().Str("tool", tool.Name).Msg("Tool registered")
+}
+
+// ListTools returns all registered tools
+func (r *ToolRegistry) ListTools() []Tool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	tools := make([]Tool, 0, len(r.tools))
+	for _, tool := range r.tools {
+		tools = append(tools, tool)
+	}
+	return tools
+}
+
+// CallTool executes a tool by name
+func (r *ToolRegistry) CallTool(ctx context.Context, name string, arguments json.RawMessage) (*CallToolResult, error) {
+	l := log.With().Str("scope", "CallTool").Str("tool", name).Logger()
+
+	r.mu.RLock()
+	handler, exists := r.handlers[name]
+	r.mu.RUnlock()
+
+	if !exists {
+		l.Error().Msg("Tool not found")
+		return nil, fmt.Errorf("tool not found: %s", name)
+	}
+
+	if debugMode {
+		l.Debug().RawJSON("arguments", arguments).Msg("Calling tool")
+	}
+
+	result, err := handler(ctx, arguments)
+	if err != nil {
+		l.Error().Err(err).Msg("Tool execution failed")
+		return nil, err
+	}
+
+	if debugMode {
+		l.Debug().Interface("result", result).Msg("Tool execution completed")
+	}
+
+	return result, nil
+}
+
+// RegisterTools registers all tools for the MCP server
+func RegisterTools(registry *ToolRegistry, adapters *AdapterRegistry) {
+	l := log.With().Str("scope", "RegisterTools").Logger()
+
+	// Always available tool: random_uint64
+	registry.RegisterTool(
+		Tool{
+			Name:        "random_uint64",
+			Description: "Generate a random 64-bit unsigned integer",
+			InputSchema: InputSchema{
+				Type:       "object",
+				Properties: map[string]interface{}{},
 			},
-		}, nil
-	})
+		},
+		func(ctx context.Context, arguments json.RawMessage) (*CallToolResult, error) {
+			var n uint64
+			if err := binary.Read(rand.Reader, binary.BigEndian, &n); err != nil {
+				return nil, fmt.Errorf("failed to generate random number: %w", err)
+			}
+
+			return &CallToolResult{
+				Content: []Content{
+					TextContent{
+						Type: "text",
+						Text: fmt.Sprintf("%d", n),
+					},
+				},
+			}, nil
+		},
+	)
 
 	// PostgreSQL tools
-	if adapter, ok := registry.Get("postgres"); ok {
+	if adapter, ok := adapters.Get("postgres"); ok {
 		postgresAdapter := adapter.(*PostgresAdapter)
 
-		// List schemas tool
-		tool := mcp.NewTool("postgres_schemas",
-			mcp.WithDescription("List all schemas in the PostgreSQL database"),
-			mcp.WithEmptyInputSchema(),
+		// postgres_schemas tool
+		registry.RegisterTool(
+			Tool{
+				Name:        "postgres_schemas",
+				Description: "List all schemas in the PostgreSQL database",
+				InputSchema: InputSchema{
+					Type:       "object",
+					Properties: map[string]interface{}{},
+				},
+			},
+			func(ctx context.Context, arguments json.RawMessage) (*CallToolResult, error) {
+				schemas, err := postgresAdapter.ListSchemas(ctx)
+				if err != nil {
+					return nil, err
+				}
+
+				// Convert to JSON
+				schemasJSON, err := json.Marshal(map[string]interface{}{"schemas": schemas})
+				if err != nil {
+					return nil, err
+				}
+
+				return &CallToolResult{
+					Content: []Content{
+						TextContent{
+							Type: "text",
+							Text: string(schemasJSON),
+						},
+					},
+				}, nil
+			},
 		)
-		s.AddTool(tool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			schemas, err := postgresAdapter.ListSchemas(ctx)
-			if err != nil {
-				return nil, err
-			}
-			
-			schemasJSON, err := json.Marshal(map[string]interface{}{"schemas": schemas})
-			if err != nil {
-				return nil, err
-			}
-			
-			return &mcp.CallToolResult{
-				Content: []interface{}{
-					mcp.TextContent{
-						Type: "text",
-						Text: string(schemasJSON),
-					},
-				},
-			}, nil
-		})
 
-		// Get schema DDL tool
-		schemaDDLTool := mcp.NewTool("postgres_schema_ddls",
-			mcp.WithDescription("Get DDL statements for a PostgreSQL schema"),
-			mcp.WithObjectInputSchema(mcp.ObjectSchema{
-				Properties: map[string]mcp.PropertySchema{
-					"schema_name": {
-						Type:        mcp.PropertyTypeString,
-						Description: "Name of the schema",
+		// postgres_schema_ddls tool
+		registry.RegisterTool(
+			Tool{
+				Name:        "postgres_schema_ddls",
+				Description: "Get DDL statements for a PostgreSQL schema",
+				InputSchema: InputSchema{
+					Type: "object",
+					Properties: map[string]interface{}{
+						"schema_name": map[string]interface{}{
+							"type":        "string",
+							"description": "Name of the schema",
+						},
 					},
+					Required: []string{"schema_name"},
 				},
-				Required: []string{"schema_name"},
-			}),
+			},
+			func(ctx context.Context, arguments json.RawMessage) (*CallToolResult, error) {
+				var params struct {
+					SchemaName string `json:"schema_name"`
+				}
+
+				if err := json.Unmarshal(arguments, &params); err != nil {
+					return nil, fmt.Errorf("invalid parameters: %w", err)
+				}
+
+				if params.SchemaName == "" {
+					return nil, fmt.Errorf("schema_name is required")
+				}
+
+				ddl, err := postgresAdapter.GetSchemaDDL(ctx, params.SchemaName)
+				if err != nil {
+					return nil, err
+				}
+
+				return &CallToolResult{
+					Content: []Content{
+						TextContent{
+							Type: "text",
+							Text: ddl,
+						},
+					},
+				}, nil
+			},
 		)
-		s.AddTool(schemaDDLTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var params struct {
-				SchemaName string `json:"schema_name"`
-			}
-			
-			if err := json.Unmarshal([]byte(request.Params), &params); err != nil {
-				return nil, fmt.Errorf("invalid parameters: %w", err)
-			}
-			
-			if params.SchemaName == "" {
-				return nil, fmt.Errorf("schema_name is required")
-			}
 
-			ddl, err := postgresAdapter.GetSchemaDDL(ctx, params.SchemaName)
-			if err != nil {
-				return nil, err
-			}
-
-			return &mcp.CallToolResult{
-				Content: []interface{}{
-					mcp.TextContent{
-						Type: "text",
-						Text: ddl,
+		// postgres_query_select tool
+		registry.RegisterTool(
+			Tool{
+				Name:        "postgres_query_select",
+				Description: "Execute a SELECT query on PostgreSQL database",
+				InputSchema: InputSchema{
+					Type: "object",
+					Properties: map[string]interface{}{
+						"query": map[string]interface{}{
+							"type":        "string",
+							"description": "SELECT query to execute",
+						},
 					},
+					Required: []string{"query"},
 				},
-			}, nil
-		})
+			},
+			func(ctx context.Context, arguments json.RawMessage) (*CallToolResult, error) {
+				var params struct {
+					Query string `json:"query"`
+				}
 
-		// Execute SELECT query tool
-		queryTool := mcp.NewTool("postgres_query_select",
-			mcp.WithDescription("Execute a SELECT query on PostgreSQL database"),
-			mcp.WithObjectInputSchema(mcp.ObjectSchema{
-				Properties: map[string]mcp.PropertySchema{
-					"query": {
-						Type:        mcp.PropertyTypeString,
-						Description: "SELECT query to execute",
+				if err := json.Unmarshal(arguments, &params); err != nil {
+					return nil, fmt.Errorf("invalid parameters: %w", err)
+				}
+
+				if params.Query == "" {
+					return nil, fmt.Errorf("query is required")
+				}
+
+				result, err := postgresAdapter.ExecuteSelect(ctx, params.Query)
+				if err != nil {
+					return nil, err
+				}
+
+				// Convert to JSON
+				resultJSON, err := json.Marshal(result)
+				if err != nil {
+					return nil, err
+				}
+
+				return &CallToolResult{
+					Content: []Content{
+						TextContent{
+							Type: "text",
+							Text: string(resultJSON),
+						},
 					},
-				},
-				Required: []string{"query"},
-			}),
+				}, nil
+			},
 		)
-		s.AddTool(queryTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var params struct {
-				Query string `json:"query"`
-			}
-			
-			if err := json.Unmarshal([]byte(request.Params), &params); err != nil {
-				return nil, fmt.Errorf("invalid parameters: %w", err)
-			}
-			
-			if params.Query == "" {
-				return nil, fmt.Errorf("query is required")
-			}
-
-			result, err := postgresAdapter.ExecuteSelect(ctx, params.Query)
-			if err != nil {
-				return nil, err
-			}
-
-			resultJSON, err := json.Marshal(result)
-			if err != nil {
-				return nil, err
-			}
-
-			return &mcp.CallToolResult{
-				Content: []interface{}{
-					mcp.TextContent{
-						Type: "text",
-						Text: string(resultJSON),
-					},
-				},
-			}, nil
-		})
 	}
 
 	// MySQL tools
-	if adapter, ok := registry.Get("mysql"); ok {
+	if adapter, ok := adapters.Get("mysql"); ok {
 		mysqlAdapter := adapter.(*MySQLAdapter)
 
-		// Execute SELECT query tool
-		queryTool := mcp.NewTool("mysql_query_select",
-			mcp.WithDescription("Execute a SELECT query on MySQL database"),
-			mcp.WithObjectInputSchema(mcp.ObjectSchema{
-				Properties: map[string]mcp.PropertySchema{
-					"query": {
-						Type:        mcp.PropertyTypeString,
-						Description: "SELECT query to execute",
+		// mysql_query_select tool
+		registry.RegisterTool(
+			Tool{
+				Name:        "mysql_query_select",
+				Description: "Execute a SELECT query on MySQL database",
+				InputSchema: InputSchema{
+					Type: "object",
+					Properties: map[string]interface{}{
+						"query": map[string]interface{}{
+							"type":        "string",
+							"description": "SELECT query to execute",
+						},
 					},
+					Required: []string{"query"},
 				},
-				Required: []string{"query"},
-			}),
+			},
+			func(ctx context.Context, arguments json.RawMessage) (*CallToolResult, error) {
+				var params struct {
+					Query string `json:"query"`
+				}
+
+				if err := json.Unmarshal(arguments, &params); err != nil {
+					return nil, fmt.Errorf("invalid parameters: %w", err)
+				}
+
+				if params.Query == "" {
+					return nil, fmt.Errorf("query is required")
+				}
+
+				result, err := mysqlAdapter.ExecuteSelect(ctx, params.Query)
+				if err != nil {
+					return nil, err
+				}
+
+				// Convert to JSON
+				resultJSON, err := json.Marshal(result)
+				if err != nil {
+					return nil, err
+				}
+
+				return &CallToolResult{
+					Content: []Content{
+						TextContent{
+							Type: "text",
+							Text: string(resultJSON),
+						},
+					},
+				}, nil
+			},
 		)
-		s.AddTool(queryTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var params struct {
-				Query string `json:"query"`
-			}
-			
-			if err := json.Unmarshal([]byte(request.Params), &params); err != nil {
-				return nil, fmt.Errorf("invalid parameters: %w", err)
-			}
-			
-			if params.Query == "" {
-				return nil, fmt.Errorf("query is required")
-			}
 
-			result, err := mysqlAdapter.ExecuteSelect(ctx, params.Query)
-			if err != nil {
-				return nil, err
-			}
-
-			resultJSON, err := json.Marshal(result)
-			if err != nil {
-				return nil, err
-			}
-
-			return &mcp.CallToolResult{
-				Content: []interface{}{
-					mcp.TextContent{
-						Type: "text",
-						Text: string(resultJSON),
+		// mysql_schema_ddls tool
+		registry.RegisterTool(
+			Tool{
+				Name:        "mysql_schema_ddls",
+				Description: "Get DDL statements for a MySQL schema",
+				InputSchema: InputSchema{
+					Type: "object",
+					Properties: map[string]interface{}{
+						"schema_name": map[string]interface{}{
+							"type":        "string",
+							"description": "Name of the schema",
+						},
 					},
+					Required: []string{"schema_name"},
 				},
-			}, nil
-		})
+			},
+			func(ctx context.Context, arguments json.RawMessage) (*CallToolResult, error) {
+				var params struct {
+					SchemaName string `json:"schema_name"`
+				}
 
-		// Get schema DDL tool
-		schemaDDLTool := mcp.NewTool("mysql_schema_ddls",
-			mcp.WithDescription("Get DDL statements for a MySQL schema"),
-			mcp.WithObjectInputSchema(mcp.ObjectSchema{
-				Properties: map[string]mcp.PropertySchema{
-					"schema_name": {
-						Type:        mcp.PropertyTypeString,
-						Description: "Name of the schema",
+				if err := json.Unmarshal(arguments, &params); err != nil {
+					return nil, fmt.Errorf("invalid parameters: %w", err)
+				}
+
+				if params.SchemaName == "" {
+					return nil, fmt.Errorf("schema_name is required")
+				}
+
+				ddl, err := mysqlAdapter.GetSchemaDDL(ctx, params.SchemaName)
+				if err != nil {
+					return nil, err
+				}
+
+				return &CallToolResult{
+					Content: []Content{
+						TextContent{
+							Type: "text",
+							Text: ddl,
+						},
 					},
-				},
-				Required: []string{"schema_name"},
-			}),
+				}, nil
+			},
 		)
-		s.AddTool(schemaDDLTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var params struct {
-				SchemaName string `json:"schema_name"`
-			}
-			
-			if err := json.Unmarshal([]byte(request.Params), &params); err != nil {
-				return nil, fmt.Errorf("invalid parameters: %w", err)
-			}
-			
-			if params.SchemaName == "" {
-				return nil, fmt.Errorf("schema_name is required")
-			}
-
-			ddl, err := mysqlAdapter.GetSchemaDDL(ctx, params.SchemaName)
-			if err != nil {
-				return nil, err
-			}
-
-			return &mcp.CallToolResult{
-				Content: []interface{}{
-					mcp.TextContent{
-						Type: "text",
-						Text: ddl,
-					},
-				},
-			}, nil
-		})
 	}
 
-	tools := s.ListTools()
-	log.Info().
-		Int("total_tools", len(tools)).
-		Msg("Tools registered")
+	l.Info().Int("total_tools", len(registry.ListTools())).Msg("Tools registered")
 }

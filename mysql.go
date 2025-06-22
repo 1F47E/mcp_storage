@@ -159,7 +159,7 @@ func (m *MySQLAdapter) GetSchemaDDL(ctx context.Context, schemaName string) (str
 	defer rows.Close()
 
 	type routine struct {
-		name       string
+		name        string
 		routineType string
 	}
 	var routines []routine
@@ -175,7 +175,7 @@ func (m *MySQLAdapter) GetSchemaDDL(ctx context.Context, schemaName string) (str
 	for _, r := range routines {
 		showCreateQuery := fmt.Sprintf("SHOW CREATE %s `%s`.`%s`", r.routineType, schemaName, r.name)
 		row := m.db.QueryRowContext(ctx, showCreateQuery)
-		
+
 		var name, sqlMode, createStatement, characterSet, collation, dbCollation string
 		if err := row.Scan(&name, &sqlMode, &createStatement, &characterSet, &collation, &dbCollation); err != nil {
 			log.Warn().Err(err).Str("routine", r.name).Msg("Failed to get create routine statement")
@@ -192,7 +192,7 @@ func (m *MySQLAdapter) GetSchemaDDL(ctx context.Context, schemaName string) (str
 func (m *MySQLAdapter) ExecuteSelect(ctx context.Context, query string) (QueryResult, error) {
 	query = strings.TrimSpace(query)
 	queryLower := strings.ToLower(query)
-	
+
 	if !strings.HasPrefix(queryLower, "select") && !strings.HasPrefix(queryLower, "with") {
 		return QueryResult{}, fmt.Errorf("only SELECT queries are allowed")
 	}

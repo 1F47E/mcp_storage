@@ -5,7 +5,10 @@
       "Bash(docker-compose logs:*)",
       "Bash(go doc:*)",
       "WebFetch(domain:modelcontextprotocol.io)",
-      "WebFetch(domain:spec.modelcontextprotocol.io)"
+      "WebFetch(domain:spec.modelcontextprotocol.io)",
+      "Bash(make lint)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker-compose up:*)"
     ],
     "deny": []
   }

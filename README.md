@@ -1,90 +1,216 @@
-# MCP Server for Storage Query
+# MCP Storage Server
 
-An MCP-compatible server implementation that provides powerful storage and database connectivity tools.
+A Go implementation of the Model Context Protocol (MCP) server that provides database connectivity tools for LLMs. This server enables AI assistants like Claude to interact with PostgreSQL and MySQL databases through a standardized protocol.
 
-## Key Features
+## Features
 
-- **Database Connectivity** - Connect to PostgreSQL and MySQL databases
-- **Schema Inspection** - Retrieve database schemas and DDL statements
-- **Query Execution** - Run SELECT queries against connected databases
-- **Multiple Transport Support** - Server-Sent Events (SSE) for HTTP and Standard I/O (stdio)
-- **Cursor Integration** - Seamlessly use database tools in Cursor AI chat
-
-## Available Tools
-
-This implementation includes several built-in tools for database and storage operations:
-
-- **random_uint64**: Generates a random 64-bit unsigned integer (useful for testing)
-- **postgres_schemas**: Retrieves PostgreSQL database schema information
-- **postgres_schema_ddls**: Gets DDL statements for a specific PostgreSQL schema
-- **postgres_query_select**: Executes a SELECT query on a PostgreSQL database
-- **mysql_query_select**: Executes a SELECT query on a MySQL database
-- **mysql_schema_ddls**: Gets DDL statements for a specific MySQL schema
-
-## Installation
-
-```bash
-# Install from the current directory
-pip install -e .
-```
+- **Pure HTTP Transport**: No SSE, just simple request-response over HTTP POST
+- **Database Support**: PostgreSQL and MySQL adapters with full query capabilities
+- **MCP Protocol**: Implements MCP specification version 2024-11-05
+- **Extensible Architecture**: Easy to add new database adapters
+- **Session Management**: Optional session support with configurable TTL
+- **OAuth Mock**: Built-in OAuth endpoints for Claude Code compatibility
+- **Docker Support**: Run in containers with proper host database access
 
 ## Quick Start
 
-### Starting the MCP Server
+### Local Development
 
-Start the MCP server using the SSE transport:
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/mcp-storage.git
+cd mcp-storage
+```
+
+2. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env to add your database connection strings
+```
+
+3. Build and run:
+```bash
+make build
+make run
+```
+
+### Docker
 
 ```bash
-# Using uv
-uv run mcp_server --transport sse --port 8000
+# Build and run with Docker Compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f mcp-storage
+
+# Stop
+docker-compose down
+```
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file based on `.env.example`:
+
+```bash
+# Server Configuration
+PORT=5435
+HOST=0.0.0.0
+LOG_LEVEL=info
+
+# PostgreSQL Adapter (optional)
+POSTGRES_URL=postgresql://user:password@localhost:5432/dbname?sslmode=disable
+
+# MySQL Adapter (optional)
+MYSQL_URL=user:password@tcp(localhost:3306)/dbname?charset=utf8mb4&parseTime=True
+```
+
+### Debug Mode
+
+Enable debug logging with:
+```bash
+DEBUG=1 ./mcp-storage
+```
+
+## Available Tools
+
+### Always Available
+- `random_uint64` - Generate a random 64-bit unsigned integer
+
+### PostgreSQL Tools (when configured)
+- `postgres_schemas` - List all schemas in the database
+- `postgres_schema_ddls` - Get DDL statements for a schema
+- `postgres_query_select` - Execute SELECT queries
+
+### MySQL Tools (when configured)
+- `mysql_query_select` - Execute SELECT queries
+- `mysql_schema_ddls` - Get DDL statements for a schema
+
+## Testing
+
+### Run Tests
+```bash
+# Test with Python client
+make test-mcp
+
+# Test with debug output
+make test-mcp-debug
+
+# Test specific tool
+python3 test_client.py --tool postgres_schemas
+```
+
+### Manual Testing
+```bash
+# Health check
+curl http://localhost:5435/health
+
+# Initialize
+curl -X POST http://localhost:5435/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {},
+      "clientInfo": {
+        "name": "Test Client",
+        "version": "1.0.0"
+      }
+    }
+  }'
+```
+
+## Development
+
+### Project Structure
+```
+/mcp-storage/
+├── main.go              # Entry point
+├── config.go            # Environment configuration
+├── adapter.go           # Database adapter interface
+├── postgres.go          # PostgreSQL implementation
+├── mysql.go             # MySQL implementation
+├── protocol.go          # MCP protocol types
+├── jsonrpc.go          # JSON-RPC handler
+├── transport.go         # HTTP transport layer
+├── tools.go             # Tool implementations
+├── session.go          # Session management
+├── logger.go           # Logging utilities
+├── test_client.py      # Python test client
+├── Dockerfile          # Docker configuration
+├── docker-compose.yml  # Docker Compose setup
+└── Makefile            # Build commands
+```
+
+### Adding New Database Adapters
+
+1. Create a new adapter file (e.g., `redis.go`)
+2. Implement the `DatabaseAdapter` interface
+3. Register in `main.go`
+4. Add tools in `tools.go`
+
+### Commands
+
+```bash
+make build          # Build the server
+make run           # Run locally
+make run-debug     # Run with debug logging
+make lint          # Run linters
+make clean         # Clean build artifacts
+make docker-build  # Build Docker image
+make docker-up     # Start with Docker
+make docker-logs   # View Docker logs
+```
+
+## Integration with Claude
+
+This server is designed to work with Claude Desktop via the MCP protocol. Configure it in Claude's settings to enable database access through the chat interface.
+
+### Claude Desktop Configuration
+
+Add to your Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "mcp-storage": {
+      "command": "docker",
+      "args": ["run", "-p", "5435:5435", "--env-file", ".env", "mcp-storage"],
+      "type": "http",
+      "url": "http://localhost:5435"
+    }
+  }
+}
 ```
 
 ## Using with Cursor
 
+The server also works with Cursor AI:
+
 1. Add mcp server
 ![Cursor MCP Server Setup](_media/screen2.png)
 
-2. Run it via command above (uv run mcp_server --transport sse --port 8000)
+2. Run the server: `docker-compose up -d`
 
 3. Done! You should see available list of tools
 ![Cursor MCP Server Setup](_media/screen1.png)
 
-4. Start a new chat in the AI pane in Cursor. The agent will automatically have access to the available tools. If the agent doesn't use a tool when expected, you can explicitly prompt it to use a specific MCP tool.
+## Security Considerations
 
-## Debugging with cli client
+- Always use read-only database credentials when possible
+- The server only allows SELECT queries for safety
+- Use SSL/TLS connections for production databases
+- Never expose the server directly to the internet
+- Validate and sanitize all inputs
 
-For debugging purposes, you can use the included client to test tools directly:
+## License
 
-```bash
-# List available tools
-uv run client --transport sse --port 8000
+MIT License - see LICENSE file for details
 
-# Test the random_uint64 tool
-uv run client --transport sse --port 8000 --tool random_uint64
+## Contributing
 
-# Test database tools
-uv run client --transport sse --port 8000 --tool postgres_schemas
-uv run client --transport sse --port 8000 --tool postgres_schema_ddls --args '{"schema_name": "public"}'
-```
-
-## Server Options
-
-```
---port INTEGER               Port to run the server on [default: 8000]
---transport [stdio|sse]      Transport type [default: stdio]
---debug                      Enable debug logging
---verbose                    Show detailed logs
---help                       Show this message and exit
-```
-
-## What is MCP?
-
-The Model Context Protocol (MCP) is a standardized communication protocol designed for interactions between Large Language Models (LLMs) and external tools/services. It provides a structured way for applications to extend LLM capabilities by connecting to various data sources and services.
-
-MCP uses JSON-RPC 2.0 as its messaging format and supports multiple transport mechanisms:
-- **Server-Sent Events (SSE)**: HTTP-based protocol for push notifications
-- **Standard I/O (stdio)**: Direct communication through stdin/stdout for local integrations
-
-
-NOTE:
-all code generated with sonnet 3.7, use only as reference for your prototypes, this is not a production ready code!
+Contributions are welcome! Please feel free to submit a Pull Request.

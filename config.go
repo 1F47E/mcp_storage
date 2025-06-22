@@ -1,14 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"os"
-	"strings"
 
 	"github.com/joho/godotenv"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/rs/zerolog/pkgerrors"
 )
 
 type Config struct {
@@ -43,12 +39,9 @@ func LoadConfig() (*Config, error) {
 		MongoDBURL:  os.Getenv("MONGODB_URL"),
 	}
 
-	// Setup logger
-	setupLogger(cfg.LogLevel)
-
-	// Validate at least one adapter is configured
+	// Log adapter configuration
 	if !cfg.HasAnyAdapter() {
-		return nil, fmt.Errorf("no database adapters configured. Set at least one of: POSTGRES_URL, MYSQL_URL")
+		log.Warn().Msg("No database adapters configured. Only built-in tools will be available.")
 	}
 
 	log.Info().
@@ -72,42 +65,4 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
-}
-
-// setupLogger configures the global logger
-func setupLogger(levelStr string) {
-	// Configure time format and stack marshaler
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
-
-	// Parse log level
-	level := zerolog.InfoLevel
-	switch strings.ToLower(levelStr) {
-	case "trace":
-		level = zerolog.TraceLevel
-	case "debug":
-		level = zerolog.DebugLevel
-	case "info":
-		level = zerolog.InfoLevel
-	case "warn", "warning":
-		level = zerolog.WarnLevel
-	case "error":
-		level = zerolog.ErrorLevel
-	case "fatal":
-		level = zerolog.FatalLevel
-	case "panic":
-		level = zerolog.PanicLevel
-	default:
-		log.Warn().Str("level", levelStr).Msg("Unknown log level, using info")
-	}
-
-	zerolog.SetGlobalLevel(level)
-
-	// Configure console output
-	log.Logger = log.Output(zerolog.ConsoleWriter{
-		Out:        os.Stderr,
-		TimeFormat: "2006-01-02T15:04:05.000Z07:00",
-	}).With().Caller().Logger()
-
-	log.Info().Str("level", level.String()).Msg("Logger initialized")
 }

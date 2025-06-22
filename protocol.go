@@ -4,7 +4,7 @@ import "encoding/json"
 
 const (
 	// ProtocolVersion is the MCP protocol version this server implements
-	ProtocolVersion = "2024-11-05"
+	ProtocolVersion = "2025-03-26"
 )
 
 // JSON-RPC 2.0 Types
@@ -64,16 +64,16 @@ type ServerInfo struct {
 
 // InitializeParams represents parameters for the initialize request
 type InitializeParams struct {
-	ProtocolVersion string            `json:"protocolVersion"`
+	ProtocolVersion string             `json:"protocolVersion"`
 	Capabilities    ClientCapabilities `json:"capabilities"`
-	ClientInfo      ClientInfo        `json:"clientInfo"`
+	ClientInfo      ClientInfo         `json:"clientInfo"`
 }
 
 // InitializeResult represents the result of an initialize request
 type InitializeResult struct {
-	ProtocolVersion string            `json:"protocolVersion"`
+	ProtocolVersion string             `json:"protocolVersion"`
 	Capabilities    ServerCapabilities `json:"capabilities"`
-	ServerInfo      ServerInfo        `json:"serverInfo"`
+	ServerInfo      ServerInfo         `json:"serverInfo"`
 }
 
 // ClientCapabilities represents client capabilities

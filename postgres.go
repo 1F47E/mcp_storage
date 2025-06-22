@@ -77,7 +77,7 @@ func (p *PostgresAdapter) GetSchemaDDL(ctx context.Context, schemaName string) (
 	schemaQuery := fmt.Sprintf(`
 		SELECT 'CREATE SCHEMA IF NOT EXISTS %s;' as ddl
 	`, schemaName)
-	
+
 	rows, err := p.db.QueryContext(ctx, schemaQuery)
 	if err != nil {
 		return "", fmt.Errorf("failed to get schema DDL: %w", err)
@@ -184,7 +184,7 @@ func (p *PostgresAdapter) GetSchemaDDL(ctx context.Context, schemaName string) (
 func (p *PostgresAdapter) ExecuteSelect(ctx context.Context, query string) (QueryResult, error) {
 	query = strings.TrimSpace(query)
 	queryLower := strings.ToLower(query)
-	
+
 	if !strings.HasPrefix(queryLower, "select") && !strings.HasPrefix(queryLower, "with") {
 		return QueryResult{}, fmt.Errorf("only SELECT queries are allowed")
 	}

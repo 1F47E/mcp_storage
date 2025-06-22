@@ -3,36 +3,49 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
-This is an MCP (Model Context Protocol) Server implementation that provides database connectivity tools for LLMs. It has both Python and Go implementations of the same protocol, allowing LLMs to interact with PostgreSQL and MySQL databases.
+This is an MCP (Model Context Protocol) Server implementation in Go that provides database connectivity tools for LLMs. It implements pure HTTP transport (no SSE) following the MCP specification version 2024-11-05, allowing LLMs to interact with PostgreSQL and MySQL databases.
 
 ## Development Commands
 
-### Python Server
+### Build and Run
 ```bash
-# Activate virtual environment first
-source .venv/bin/activate  # or create with: python -m venv .venv
+# Build the server
+make build
 
-# Install dependencies
-uv pip install -e .
+# Run locally
+make run
 
-# Run server with HTTP transport (default port 5435)
-make server
-# or directly:
-uv run mcp-storage --transport http --port 5435
+# Run with debug logging
+make run-debug
+# or
+DEBUG=1 ./mcp-storage
 
-# Run test client
-make client
-# or directly:
-uv run client --transport http --port 5435
+# Run with Docker
+docker-compose up -d
 ```
 
-### Go Server
+### Testing
 ```bash
-# Run Go server
-go run server.go
+# Run tests with Python client
+make test-mcp
 
-# Build Go server
-go build server.go
+# Test with debug output
+make test-mcp-debug
+
+# Test specific tool
+python3 test_client.py --tool postgres_schemas --args '{"schema_name": "public"}'
+```
+
+### Development
+```bash
+# Run linters
+make lint
+
+# Clean build artifacts
+make clean
+
+# View Docker logs
+docker-compose logs -f mcp-storage
 ```
 
 ### Docker
@@ -44,10 +57,10 @@ docker-compose up
 ## Architecture
 
 ### Core Components
-1. **Python Implementation** (`mcp_server/`): Main server using MCP SDK, asyncio, and database drivers
-2. **Go Implementation** (`server.go`): Alternative server using Fiber v2 and mark3labs/mcp-go
-3. **Transport Layer**: HTTP (Streamable HTTP) for communication via localhost:5435
-4. **Database Connectivity**: PostgreSQL (psycopg2) and MySQL (PyMySQL) with database operations
+1. **Go Implementation**: Pure Go server using Fiber v2 web framework
+2. **Transport Layer**: HTTP POST for all MCP protocol communication (no SSE)
+3. **Database Connectivity**: PostgreSQL and MySQL adapters with connection pooling
+4. **Protocol Implementation**: Custom JSON-RPC handler following MCP specification
 
 ### Available Tools
 - `random_uint64`: Generate random numbers

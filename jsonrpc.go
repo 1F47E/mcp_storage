@@ -34,12 +34,34 @@ func (h *JSONRPCHandler) RegisterMethod(method string, handler MethodHandler) {
 // HandleRequest processes a JSON-RPC request and returns a response
 func (h *JSONRPCHandler) HandleRequest(data []byte) []byte {
 	l := log.With().Str("scope", "HandleRequest").Logger()
-	
+
+	// Log raw request in debug mode
+	if debugMode {
+		l.Debug().
+			Str("raw_data", string(data)).
+			Msg("=== RAW JSON-RPC REQUEST ===")
+	}
+
 	// Try to parse as single request first
 	var req JSONRPCRequest
 	if err := json.Unmarshal(data, &req); err == nil {
 		if debugMode {
-			l.Debug().RawJSON("request", data).Msg("Handling single request")
+			var prettyParams string
+			if len(req.Params) > 0 {
+				var params interface{}
+				if err := json.Unmarshal(req.Params, &params); err == nil {
+					if prettyBytes, err := json.MarshalIndent(params, "", "  "); err == nil {
+						prettyParams = string(prettyBytes)
+					}
+				}
+			}
+			
+			l.Debug().
+				Str("jsonrpc", req.JSONRPC).
+				Str("method", req.Method).
+				RawJSON("id", req.ID).
+				Str("params", prettyParams).
+				Msg("=== PARSED JSON-RPC REQUEST ===")
 		}
 		return h.handleSingleRequest(&req)
 	}
@@ -89,12 +111,12 @@ func (h *JSONRPCHandler) handleSingleRequest(req *JSONRPCRequest) []byte {
 			l.Error().Err(err).Msg("Error in notification handler")
 			return nil
 		}
-		
+
 		// Check if error is a JSONRPCError
 		if rpcErr, ok := err.(*JSONRPCError); ok {
 			return h.createErrorResponse(req.ID, rpcErr.Code, rpcErr.Message, rpcErr.Data)
 		}
-		
+
 		// Generic error
 		return h.createErrorResponse(req.ID, InternalError, "Internal error", err.Error())
 	}
@@ -113,7 +135,10 @@ func (h *JSONRPCHandler) handleSingleRequest(req *JSONRPCRequest) []byte {
 
 	respData, _ := json.Marshal(resp)
 	if debugMode {
-		l.Debug().RawJSON("response", respData).Msg("Sending response")
+		l.Debug().
+			RawJSON("success_response", respData).
+			Str("method", req.Method).
+			Msg("=== JSON-RPC SUCCESS RESPONSE ===")
 	}
 	return respData
 }
@@ -152,8 +177,18 @@ func (h *JSONRPCHandler) createErrorResponse(id json.RawMessage, code int, messa
 			Data:    data,
 		},
 	}
-	
+
 	result, _ := json.Marshal(resp)
+	
+	if debugMode {
+		log.Debug().
+			RawJSON("error_response", result).
+			Int("code", code).
+			Str("message", message).
+			Interface("data", data).
+			Msg("=== JSON-RPC ERROR RESPONSE ===")
+	}
+	
 	return result
 }
 

@@ -7,14 +7,10 @@ services:
     ports:
       - "5435:5435"
     env_file:
-      - .env
+      - .env.docker
     environment:
       - PORT=5435
       - HOST=0.0.0.0
+      - DEBUG=1
+      - LOG_LEVEL=debug
     restart: unless-stopped
-    networks:
-      - mcp-network
-
-networks:
-  mcp-network:
-    driver: bridge
