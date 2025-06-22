@@ -40,8 +40,7 @@ server
 # Documentation
 _media/
 docs/
-*.md
-!README.md
+CLAUDE.md
 
 # Config (we'll mount this in docker-compose)
 config.yaml

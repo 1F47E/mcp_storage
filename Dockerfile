@@ -14,10 +14,9 @@ RUN apt-get update && apt-get install -y \
 RUN pip install uv
 
 # Copy project files
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 COPY mcp_server/ ./mcp_server/
 COPY mcp_client/ ./mcp_client/
-COPY config.yaml ./
 
 # Install Python dependencies
 RUN uv pip install --system -e .
