@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(claude mcp:*)",
-      "Bash(docker-compose logs:*)"
+      "Bash(docker-compose logs:*)",
+      "Bash(go doc:*)",
+      "WebFetch(domain:modelcontextprotocol.io)",
+      "WebFetch(domain:spec.modelcontextprotocol.io)"
     ],
     "deny": []
   }

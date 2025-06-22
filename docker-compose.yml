@@ -3,13 +3,14 @@ version: '3.8'
 services:
   mcp-storage:
     build: .
-    container_name: mcp-storage-server
+    container_name: mcp-storage-go
     ports:
       - "5435:5435"
-    volumes:
-      - ./config.yaml:/app/config.yaml:ro
+    env_file:
+      - .env
     environment:
-      - PYTHONUNBUFFERED=1
+      - PORT=5435
+      - HOST=0.0.0.0
     restart: unless-stopped
     networks:
       - mcp-network

@@ -1,35 +1,43 @@
-FROM python:3.12-slim
+# Build stage
+FROM golang:1.23-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git
 
 WORKDIR /app
 
-# Install system dependencies for PostgreSQL and MySQL clients
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    default-libmysqlclient-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+# Copy go mod files
+COPY go.mod go.sum ./
 
-# Install uv for faster Python package management
-RUN pip install uv
+# Download dependencies
+RUN go mod download
 
-# Copy project files
-COPY pyproject.toml uv.lock README.md ./
-COPY mcp_server/ ./mcp_server/
-COPY mcp_client/ ./mcp_client/
+# Copy source files
+COPY *.go ./
 
-# Install Python dependencies
-RUN uv pip install --system -e .
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o mcp-storage .
 
-# Expose the HTTP transport port
+# Final stage
+FROM alpine:latest
+
+# Install ca-certificates for HTTPS
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /root/
+
+# Copy the binary from builder
+COPY --from=builder /app/mcp-storage .
+
+# Copy .env files if they exist
+COPY .env* ./
+
+# Expose the HTTP port
 EXPOSE 5435
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:5435/health', timeout=5)" || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:5435/health || exit 1
 
-# Run the server with HTTP transport on port 5435
-CMD ["mcp-storage", "--transport", "http", "--port", "5435"]
+# Run the binary
+CMD ["./mcp-storage"]
