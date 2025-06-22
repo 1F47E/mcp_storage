@@ -10,10 +10,10 @@ run: build
 	@echo "Starting MCP Storage Server on port 5435..."
 	@./mcp-storage
 
-# Run the server with debug mode
+# Run the server with debug logging
 run-debug: build
-	@echo "Starting MCP Storage Server in debug mode..."
-	@DEBUG=1 ./mcp-storage
+	@echo "Starting MCP Storage Server with debug logging..."
+	@LOG_LEVEL=debug ./mcp-storage
 
 # Test MCP protocol with Python client
 test-mcp:

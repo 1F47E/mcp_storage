@@ -14,34 +14,36 @@ var debugMode bool
 
 // InitLogger initializes the global logger based on environment variables
 func InitLogger() {
-	// Check DEBUG environment variable
-	debugEnv := os.Getenv("DEBUG")
-	debugMode = debugEnv == "1" || debugEnv == "true"
-
-	// Set log level based on LOG_LEVEL env var or DEBUG mode
+	// Set log level based on LOG_LEVEL env var
 	level := zerolog.InfoLevel
-	if debugMode {
+	levelStr := os.Getenv("LOG_LEVEL")
+	
+	switch strings.ToLower(levelStr) {
+	case "trace":
+		level = zerolog.TraceLevel
+		debugMode = true
+	case "debug":
 		level = zerolog.DebugLevel
-	}
-
-	// Allow LOG_LEVEL to override
-	if levelStr := os.Getenv("LOG_LEVEL"); levelStr != "" {
-		switch levelStr {
-		case "trace":
-			level = zerolog.TraceLevel
-		case "debug":
-			level = zerolog.DebugLevel
-		case "info":
-			level = zerolog.InfoLevel
-		case "warn", "warning":
-			level = zerolog.WarnLevel
-		case "error":
-			level = zerolog.ErrorLevel
-		case "fatal":
-			level = zerolog.FatalLevel
-		case "panic":
-			level = zerolog.PanicLevel
-		}
+		debugMode = true
+	case "info":
+		level = zerolog.InfoLevel
+		debugMode = false
+	case "warn", "warning":
+		level = zerolog.WarnLevel
+		debugMode = false
+	case "error":
+		level = zerolog.ErrorLevel
+		debugMode = false
+	case "fatal":
+		level = zerolog.FatalLevel
+		debugMode = false
+	case "panic":
+		level = zerolog.PanicLevel
+		debugMode = false
+	default:
+		// Default to info level
+		level = zerolog.InfoLevel
+		debugMode = false
 	}
 
 	zerolog.SetGlobalLevel(level)

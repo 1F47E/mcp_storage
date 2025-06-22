@@ -18,7 +18,7 @@ make run
 # Run with debug logging
 make run-debug
 # or
-DEBUG=1 ./mcp-storage
+LOG_LEVEL=debug ./mcp-storage
 
 # Run with Docker
 docker-compose up -d
@@ -76,8 +76,7 @@ Database connections are configured via environment variables. Create a `.env` f
 # Server Configuration
 PORT=5435
 HOST=0.0.0.0
-LOG_LEVEL=info  # Set to "debug" for detailed logging
-DEBUG=1         # Enable debug mode
+LOG_LEVEL=info  # Options: trace, debug, info, warn, error
 
 # PostgreSQL (optional)
 POSTGRES_URL=postgresql://user:password@localhost:5432/dbname?sslmode=disable
@@ -95,7 +94,7 @@ For Docker, use `.env.docker` with `host.docker.internal` for accessing host dat
 3. **Transport**: Pure HTTP POST transport, no SSE (Server-Sent Events)
 4. **Port Configuration**: Default HTTP port is 5435
 5. **Docker Networking**: On macOS, use `host.docker.internal` to access host databases from Docker
-6. **Debug Logging**: Set `DEBUG=1` and `LOG_LEVEL=debug` to see detailed request/response logs
+6. **Debug Logging**: Set `LOG_LEVEL=debug` to see detailed request/response logs
 7. **OAuth Mock**: Includes mock OAuth endpoints for Claude Code compatibility
 
 ## Testing Approach

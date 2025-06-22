@@ -66,11 +66,12 @@ POSTGRES_URL=postgresql://user:password@localhost:5432/dbname?sslmode=disable
 MYSQL_URL=user:password@tcp(localhost:3306)/dbname?charset=utf8mb4&parseTime=True
 ```
 
-### Debug Mode
+### Logging
 
-Enable debug logging with:
+Control log verbosity with the LOG_LEVEL environment variable:
 ```bash
-DEBUG=1 ./mcp-storage
+# Available levels: trace, debug, info, warn, error
+LOG_LEVEL=debug ./mcp-storage
 ```
 
 ## Available Tools
