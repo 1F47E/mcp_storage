@@ -190,15 +190,31 @@ Add to your Claude Desktop config:
 
 ## Using with Cursor
 
-The server also works with Cursor AI:
+The server also works with Cursor AI. Add the following to your Cursor settings:
 
-1. Add mcp server
-![Cursor MCP Server Setup](_media/screen2.png)
+1. Open Cursor Settings (Cmd/Ctrl + ,)
+2. Search for "MCP" in the settings
+3. Add a new MCP server with these settings:
+   - **Name**: mcp-storage
+   - **Command**: http://localhost:5435
+   - **Transport**: HTTP
 
-2. Run the server: `docker-compose up -d`
+Or add directly to your Cursor configuration file:
 
-3. Done! You should see available list of tools
-![Cursor MCP Server Setup](_media/screen1.png)
+```json
+{
+  "mcpServers": {
+    "mcp-storage": {
+      "transport": "http",
+      "url": "http://localhost:5435"
+    }
+  }
+}
+```
+
+4. Run the server: `docker-compose up -d`
+5. Restart Cursor to connect to the MCP server
+6. The database tools will be available in your AI chat
 
 ## Security Considerations
 
