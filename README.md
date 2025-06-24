@@ -76,9 +76,6 @@ LOG_LEVEL=debug ./mcp-storage
 
 ## Available Tools
 
-### Always Available
-- `random_uint64` - Generate a random 64-bit unsigned integer
-
 ### PostgreSQL Tools (when configured)
 - `postgres_schemas` - List all schemas in the database
 - `postgres_schema_ddls` - Get DDL statements for a schema

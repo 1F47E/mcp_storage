@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -88,32 +86,6 @@ func (r *ToolRegistry) CallTool(ctx context.Context, name string, arguments json
 func RegisterTools(registry *ToolRegistry, adapters *AdapterRegistry) {
 	l := log.With().Str("scope", "RegisterTools").Logger()
 
-	// Always available tool: random_uint64
-	registry.RegisterTool(
-		Tool{
-			Name:        "random_uint64",
-			Description: "Generate a random 64-bit unsigned integer",
-			InputSchema: InputSchema{
-				Type:       "object",
-				Properties: map[string]interface{}{},
-			},
-		},
-		func(ctx context.Context, arguments json.RawMessage) (*CallToolResult, error) {
-			var n uint64
-			if err := binary.Read(rand.Reader, binary.BigEndian, &n); err != nil {
-				return nil, fmt.Errorf("failed to generate random number: %w", err)
-			}
-
-			return &CallToolResult{
-				Content: []Content{
-					TextContent{
-						Type: "text",
-						Text: fmt.Sprintf("%d", n),
-					},
-				},
-			}, nil
-		},
-	)
 
 	// PostgreSQL tools
 	if adapter, ok := adapters.Get("postgres"); ok {

@@ -63,7 +63,6 @@ docker-compose up
 4. **Protocol Implementation**: Custom JSON-RPC handler following MCP specification
 
 ### Available Tools
-- `random_uint64`: Generate random numbers
 - `postgres_schemas`: List PostgreSQL schemas
 - `postgres_schema_ddls`: Get PostgreSQL DDL statements
 - `postgres_query_select`: Execute PostgreSQL SELECT queries
